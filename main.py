@@ -16,14 +16,13 @@ USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 # ------------------------------------------
 
 
-class InstagramAPI:
-    GET_COMMENTS_HASH = ''
-    GET_FOLLOWERS_HASH = ''
-
-    def __init__(self, session: requests.Session()):
+class Instagram:
+    def __init__(self):
         self.rhxgis = None
         self.csrftoken = None
-        self.session = session or requests.Session()
+        self.session = requests.Session()
+
+        self.login()
 
     def genSig(self, query: dict):
         """
@@ -73,9 +72,19 @@ class InstagramAPI:
         r = self.makeRequest(url=url)
         return [i['user'] for i in r['users']]
 
+    def followUser(self, userID: str):
+        url = f'https://www.instagram.com/web/friendships/{userID}/follow/'
+        r = self.makeRequest(url, method='POST')
+        return r
+
+    def unfollowUser(self, userID: str):
+        url = f'https://www.instagram.com/web/friendships/{userID}/unfollow/'
+        r = self.makeRequest(url, method='POST')
+        return r.get('status') == 'ok'
+
     def makeRequest(self, url: str, headers: dict = None,
                     data: dict = None, query: dict = None,
-                    getJSON: bool=True):
+                    getJSON: bool=True, method: str=None):
         """
             Handles all the requests to the private API
         """
@@ -89,14 +98,18 @@ class InstagramAPI:
             }
             if data:
                 headers.update({
-                    'x-csrftoken': self.csrftoken,
-                    'x-requested-with': 'XMLHttpRequest',
-                    'x-instagram-ajax': '1',
+                    'X-CSRFToken': self.csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Instagram-AJAX': '1',
                     'Referer': 'https://www.instagram.com',
                     'Authority': 'www.instagram.com',
                     'Origin': 'https://www.instagram.com',
                     'Content-Type': 'application/x-www-form-urlencoded'
                 })
+        
+        if method == 'POST':
+            headers.update({'Referer': 'https://www.instagram.com/green.weeds/',})
+
         if query:
             url += ('?' if '?' not in url else '&') + \
                 'query_hash=' + query['query_hash']
@@ -105,10 +118,18 @@ class InstagramAPI:
             if sig:
                 headers['X-Instagram-GIS'] = sig
 
-        method = 'POST' if data else 'GET'
+        if not method:
+            method = 'POST' if data else 'GET'
         r = self.session.request(method=method, url=url,
                                  data=data, headers=headers)
+        print(url)
+        # print(self.session.cookies)
+        print('ONE')
         if getJSON:
-            return r.json()
+            return r
         else:
             return r.text
+
+if __name__ == '__main__':
+    ig = Instagram()
+    r = ig.followUser('4758150980')
