@@ -8,7 +8,6 @@ from urllib.parse import quote
 
 # ------------------------------------------
 
-API_URL = 'https://www.instagram.com/query/'
 GRAPHQL_API_URL = 'https://www.instagram.com/graphql/query/'
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0.2 Safari/605.1.15'
 
@@ -56,8 +55,8 @@ class Instagram:
         # Get the csrftoken and rhx_gis token
         x = self.session.get(url='https://www.instagram.com',
                              headers={'User-Agent': USER_AGENT})
-        self.csrftoken = self.extractCsrfToken(x.text)
-        self.rhxgis = self.extractRhxgisToken(x.text)
+        self.csrftoken = Instagram.extractCsrfToken(x.text)
+        self.rhxgis = Instagram.extractRhxgisToken(x.text)
 
         params = {
             'username': config.INSTAGRAM_USERNAME,
@@ -112,11 +111,14 @@ class Instagram:
 
     def postComment(self, mediaID: str, comment: str):
         if len(comment) > 300:
-            raise ValueError('The total length of the comment cannot exceed 300 characters.')
+            raise ValueError(
+                'The total length of the comment cannot exceed 300 characters.')
         if re.search(r'[a-z]+', comment, re.IGNORECASE) and comment == comment.upper():
-            raise ValueError('The comment cannot consist of all capital letters.')
+            raise ValueError(
+                'The comment cannot consist of all capital letters.')
         if len(re.findall(r'#[^#]+\b', comment, re.UNICODE | re.MULTILINE)) > 4:
-            raise ValueError('The comment cannot contain more than 4 hashtags.')
+            raise ValueError(
+                'The comment cannot contain more than 4 hashtags.')
         if len(re.findall(r'\bhttps?://\S+\.\S+', comment)) > 1:
             raise ValueError('The comment cannot contain more than 1 URL.')
 
@@ -130,8 +132,80 @@ class Instagram:
         r = self.makeRequest(url, method='POST')
         return r.get('status') == 'ok'
 
-    def getTimeline(self, count: int = 50):
-        pass
+    def getTimeline(self, count: int = 50, endCursor: str = None,
+                    timeline: list=[]):
+        if count > 300:
+            raise ValueError('Count cannot be greater than 300')
+
+        # Base case
+        if count <= 0:
+            return timeline
+
+        # Setting up variables
+        variables = {
+            # We can't query more than 50 at a time
+            'fetch_media_item_count': min((50, count)),
+        }
+        if endCursor:
+            variables['fetch_media_item_cursor'] = endCursor
+        query = {
+            'query_hash': '13ab8e6f3d19ee05e336ea3bd37ef12b',
+            'variables': Instagram.stringify(variables),
+        }
+
+        x = self.makeRequest(url=GRAPHQL_API_URL, query=query)
+        x = x.get('data', {}).get('user', {}).get('edge_web_feed_timeline', {})
+        endCursor = x.get('page_info', {}).get('end_cursor', None)
+
+        # If there are no more posts, then trigger the base case
+        if endCursor is None:
+            count = 0
+        else:
+            count -= 50
+
+        # IG returns a bunch of unnecessary data, so only take what we need
+        newTimeline = [i.get('node', {}) for i in x.get('edges', {})]
+        timeline.extend(newTimeline)
+        return self.getTimeline(count=count, endCursor=endCursor, timeline=timeline)
+
+    def getUserFollowers(self, userID: str, count: int = 50,
+                         endCursor: str = None, followers: list = []):
+        if count > 300:
+            raise ValueError('Count cannot be greater than 300')
+
+        print(count)
+
+        # Base case
+        if count <= 0:
+            return followers
+
+        variables = {
+            'id': userID,
+            # We can't query more than 50 at a time
+            'first': min((50, count))
+        }
+        if endCursor:
+            variables['after'] = endCursor
+        query = {
+            'query_hash': '7dd9a7e2160524fd85f50317462cff9f',
+            'variables': Instagram.stringify(variables)
+        }
+
+        x = self.makeRequest(url=GRAPHQL_API_URL, query=query)
+        x = x.get('data', {}).get('user', {}).get('edge_followed_by', {})
+        endCursor = x.get('page_info', {}).get('end_cursor', None)
+
+        # If there are no more posts, then trigger the base case
+        if endCursor is None:
+            count = 0
+        else:
+            count -= 50
+
+        # IG returns a bunch of unnecessary data, so only take what we need
+        newFollowers = [i.get('node', {}) for i in x.get('edges', {})]
+        followers.extend(newFollowers)
+        return self.getUserFollowers(userID=userID, count=count,
+                                     endCursor=endCursor, followers=followers)
 
     def makeRequest(self, url: str, headers: dict = None,
                     data: dict = None, query: dict = None,
@@ -162,7 +236,9 @@ class Instagram:
         if query:
             url += ('?' if '?' not in url else '&') + \
                 'query_hash=' + query['query_hash']
-            url += '&variables=' + quote(query['variables'])
+            if query.get('variables'):
+                url += '&variables=' + quote(query['variables'])
+
             sig = self.genSig(query)
             if sig:
                 headers['X-Instagram-GIS'] = sig
@@ -179,4 +255,3 @@ class Instagram:
 
 if __name__ == '__main__':
     ig = Instagram()
-    print(ig.postComment('1916585046861649463', 'nice'))
