@@ -209,8 +209,22 @@ class Instagram:
         return self.searchTagFeed(tag=tag, count=count,
                                   endCursor=endCursor, tagFeed=newTagFeed)
 
+    def getPostInfo(self, shortcode: str):
+        variables = {
+            'shortcode': shortcode,
+            'include_reel': True,
+            'include_logged_out': False
+        }
+        query = {
+            'query_hash': '292c781d60c07571d58d9ef7808888ef',
+            'variables': Instagram.stringify(variables),
+        }
+        x = self.makeRequest(url=GRAPHQL_API_URL, query=query)
+        return x.get('data', {}).get('shortcode_media', {})\
+            .get('owner', {}).get('reel', {}).get('owner', {})
+
     def getUserFollowers(self, userID: str, count: int=50,
-                         endCursor: str = None, followers: list = []):
+                         endCursor: str=None, followers: list=[]):
         if count > 300:
             raise ValueError('Count cannot be greater than 300')
 
@@ -246,8 +260,8 @@ class Instagram:
         return self.getUserFollowers(userID=userID, count=count,
                                      endCursor=endCursor, followers=followers)
 
-    def makeRequest(self, url: str, headers: dict = None,
-                    data: dict = None, query: dict = None,
+    def makeRequest(self, url: str, headers: dict=None,
+                    data: dict=None, query: dict=None,
                     method: str=None):
         """
             Handles all the requests to the private API
