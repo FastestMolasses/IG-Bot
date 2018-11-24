@@ -31,6 +31,9 @@ def likePost(ig: Instagram, data: dict):
 
 
 def commentPost(ig: Instagram, data: dict):
+    if len(config.COMMENTS) <= 0:
+        return
+    
     c = random.choice(config.COMMENTS)
     ig.postComment(data['id'], c)
     shortcode = data['shortcode']
