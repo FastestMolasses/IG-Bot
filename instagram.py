@@ -255,7 +255,7 @@ class Instagram:
             count -= 50
 
         # IG returns a bunch of unnecessary data, so only take what we need
-        newFollowers = [i.get('node', {}) for i in x.get('edges', {})]
+        newFollowers = [i.get('node', {}) for i in x.get('edges', [])]
         followers.extend(newFollowers)
         return self.getUserFollowers(userID=userID, count=count,
                                      endCursor=endCursor, followers=followers)

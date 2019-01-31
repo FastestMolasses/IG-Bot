@@ -80,7 +80,7 @@ def main():
             likePost(ig, x)
         if i % COMMENT_STEP == 0:
             commentPost(ig, x)
-        if i % unfollowPoster == 0:
+        if i % FOLLOW_STEP == 0:
             unfollowPoster(ig, x['shortcode'])
 
         randSleep()
